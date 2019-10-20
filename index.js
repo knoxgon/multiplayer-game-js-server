@@ -24,16 +24,16 @@ function broadcastToAll(event, message) {
 function inField(data) {
   if (!data) return;
   if ((data.x - data.radius - data.speed) < 0) {
-    data.x = data.radius;
+    data.x = data.radius + 1;
   }
   else if ((data.x + data.radius + data.speed) > WIDTH) {
-    data.x = WIDTH - data.radius;
+    data.x = WIDTH - data.radius - 1;
   }
   if ((data.y - data.radius - data.speed) < 0) {
-    data.y = data.radius;
+    data.y = data.radius + 1;
   }
   else if ((data.y + data.radius + data.speed) > HEIGHT) {
-    data.y = HEIGHT - data.radius;
+    data.y = HEIGHT - data.radius - 1;
   }
 }
 
@@ -79,16 +79,24 @@ io.on('connection', (socket) => {
   socket.on('player move', (data) => {
     if(!onlinePlayers[socket.id]) {return };
     let currentPlayer = onlinePlayers[socket.id];
-    
-    currentPlayer.speed = data.boost ? 25 : 5;
+    const originalSpeed = currentPlayer.speed;
+    let sp = data.boost ? 4 : originalSpeed;
+    let dx=dy=0;
     if(data.left) {
-      currentPlayer.x -= currentPlayer.speed;
+      dx = -1;
     } if(data.right) {
-      currentPlayer.x += currentPlayer.speed;
+      dx = 1;
     } if(data.up) {
-      currentPlayer.y -= currentPlayer.speed;
+      dy = -1;
     } if(data.down) {
-      currentPlayer.y += currentPlayer.speed;
+      dy = 1;
+    }
+    let length = Math.sqrt(dx**2 + dy**2);
+    if(length != 0){
+      dx /= length;
+      dy /= length;
+      currentPlayer.x += dx * sp;
+      currentPlayer.y += dy * sp;
     }
     checkCircleToCircleCollision(currentPlayer, onlinePlayers);
     inField(currentPlayer);

@@ -37,11 +37,34 @@ function inField(data) {
   }
 }
 
+function inFieldTileCollision(data, tileCoordinates) {
+  if (!data) return;
+  if ((data.x - data.radius - data.speed) < 0) {
+    data.x = data.radius + 1;
+  }
+  else if ((data.x + data.radius + data.speed) > WIDTH) {
+    data.x = WIDTH - data.radius - 1;
+  }
+  if ((data.y - data.radius - data.speed) < 0) {
+    data.y = data.radius + 1;
+  }
+  else if ((data.y + data.radius + data.speed) > HEIGHT) {
+    data.y = HEIGHT - data.radius - 1;
+  }
+}
+
 function circleToCircleCollision(srcX, srcY, srcRadius, trgX, trgY, trgRadius) {
   if((srcRadius + trgRadius) > Math.sqrt(((srcX - trgX) * (srcX - trgX)) + ((srcY - trgY) * (srcY - trgY)))) {
     return true;
   }
   return false; 
+}
+
+function rectToRectCollision(srcX, srcY, srcW, srcH, trgX, trgY, trgW, trgH) {
+  if(srcX < trgX + trgW && srcX + srcW > trgX && srcY < trgY + trgH && srcY + srcH > trgY) {
+    return true;
+  }
+  return false;
 }
 
 function checkCircleToCircleCollision(src, trg) {
@@ -82,14 +105,24 @@ io.on('connection', (socket) => {
     const originalSpeed = currentPlayer.speed;
     let sp = data.boost ? 4 : originalSpeed;
     let dx=dy=0;
+    const FACES = {UP: 3, DOWN: 0, LEFT: 1, RIGHT: 2};
+    let currentFace = 0
+
     if(data.left) {
       dx = -1;
-    } if(data.right) {
+      currentFace = FACES.LEFT;
+    } 
+    if(data.right) {
       dx = 1;
-    } if(data.up) {
+      currentFace = FACES.RIGHT;
+    } 
+    if(data.up) {
       dy = -1;
-    } if(data.down) {
+      currentFace = FACES.UP;
+    } 
+    if(data.down) {
       dy = 1;
+      currentFace = FACES.DOWN;
     }
     let length = Math.sqrt(dx**2 + dy**2);
     if(length != 0){
@@ -103,7 +136,8 @@ io.on('connection', (socket) => {
     broadcastToAll('position update', {
       name: currentPlayer.name,
       x: currentPlayer.x,
-      y: currentPlayer.y
+      y: currentPlayer.y,
+      currentFace: currentFace
     });
   });
 

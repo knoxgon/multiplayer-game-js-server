@@ -5,6 +5,41 @@ const app = express();
 const server = http.Server(app);
 const PORT = 1234;
 const io = unixWebSocket(server);
+const fs = require('fs');
+let rawdata = fs.readFileSync('gamelayer.json');
+let gamejson = JSON.parse(rawdata);
+
+//data[0,0,12,62,4,0,959] name="xtilelayer"
+let layerInfo = [];
+let map2d = [];
+
+gamejson.layers.forEach((e,i) => {
+  layerInfo[e.name] = [];
+  layerInfo[e.name].push({data: e.data});
+});
+
+let i = 0;
+for(let y = 0; y < layerInfo['wall'][0].data.length / 16; y++) {
+  map2d[y] = [];
+  for(let x = 0; x < layerInfo['wall'][0].data.length / 16; x++) {
+    if(layerInfo['wall'][0].data[i] > 0)
+      map2d[y].push(1);
+    else
+      map2d[y].push(layerInfo['wall'][0].data[i]);
+    i++;
+  }
+}
+
+let strrep = '';
+
+for(let i = 0; i < 16; i++) {
+  for(let j = 0; j < 16; j++) {
+    strrep += map2d[i][j] + ' ';
+  }
+  strrep += '\n';
+}
+console.log(strrep);
+
 app.set('port', PORT);
 server.listen(PORT, () => console.log(`Game server started at port ${PORT}`));
 
@@ -21,23 +56,37 @@ function broadcastToAll(event, message) {
   }
 }
 
-function inField(data) {
+function inFieldExp(data, currentFace) {
   if (!data) return;
-  if ((data.x - data.radius - data.speed) < 0) {
-    data.x = data.radius + 1;
-  }
-  else if ((data.x + data.radius + data.speed) > WIDTH) {
-    data.x = WIDTH - data.radius - 1;
-  }
-  if ((data.y - data.radius - data.speed) < 0) {
-    data.y = data.radius + 1;
-  }
-  else if ((data.y + data.radius + data.speed) > HEIGHT) {
-    data.y = HEIGHT - data.radius - 1;
-  }
+  let tileCoord = 0;
+
+    if(currentFace == 2) { //right
+      tileCoord =  map2d[Math.floor((((data.y) + 1)) / 32)][Math.floor(((data.x + 32) + 1) / 32)];
+      if(tileCoord > 0){
+        data.x = data.x - 1;
+      }
+    }
+    if(currentFace == 1) { //left
+      tileCoord =  map2d[Math.floor((((data.y) + 1)) / 32)][Math.floor(((data.x - 4) + 1) / 32)];
+      if(tileCoord > 0){
+        data.x = data.x + 1;
+      }
+    }
+    if(currentFace == 0) { //down
+      tileCoord =  map2d[Math.floor((((data.y + 32) + 1)) / 32)][Math.floor(((data.x) + 1) / 32)];
+      if(tileCoord > 0){
+        data.y = data.y - 1;
+      }
+    }
+    if(currentFace == 3) { //up
+      tileCoord =  map2d[Math.floor((((data.y - 4) + 1)) / 32)][Math.floor(((data.x) + 1) / 32)];
+      if(tileCoord > 0){
+        data.y = data.y + 1;
+      }
+    }
 }
 
-function inFieldTileCollision(data, tileCoordinates) {
+function inField(data) {
   if (!data) return;
   if ((data.x - data.radius - data.speed) < 0) {
     data.x = data.radius + 1;
@@ -68,7 +117,6 @@ function rectToRectCollision(srcX, srcY, srcW, srcH, trgX, trgY, trgW, trgH) {
 }
 
 function checkCircleToCircleCollision(src, trg) {
-  //All of our players are circles, pretty much check CtC
   for(const key in trg) {
     if(circleToCircleCollision(src.x, src.y, src.radius, trg[key].x, trg[key].y, trg[key].radius) && src.name !== trg[key].name){
       const distX = src.x - trg[key].x;
@@ -92,6 +140,8 @@ io.on('connection', (socket) => {
       x: data.x,
       y: data.y,
       radius: data.radius,
+      width: data.width,
+      height: data.height,
       speed: data.speed
     }
     //Save joined socket
@@ -105,8 +155,9 @@ io.on('connection', (socket) => {
     const originalSpeed = currentPlayer.speed;
     let sp = data.boost ? 4 : originalSpeed;
     let dx=dy=0;
+//    const FACES = {UP: 3, DOWN: 0, LEFT: 1, RIGHT: 2};
     const FACES = {UP: 3, DOWN: 0, LEFT: 1, RIGHT: 2};
-    let currentFace = 0
+    let currentFace = 0;
 
     if(data.left) {
       dx = -1;
@@ -133,6 +184,7 @@ io.on('connection', (socket) => {
     }
     checkCircleToCircleCollision(currentPlayer, onlinePlayers);
     inField(currentPlayer);
+    inFieldExp(currentPlayer, currentFace);
     broadcastToAll('position update', {
       name: currentPlayer.name,
       x: currentPlayer.x,
